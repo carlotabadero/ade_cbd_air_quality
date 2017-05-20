@@ -1,0 +1,4 @@
+"0","ggplot(particle, mapping = aes(x=hour, y=pm10)) +"
+"0","  geom_point(position = ""jitter"", na.rm = TRUE, alpha = 1/10)+"
+"0","  geom_smooth(na.rm = TRUE)+"
+"0","  scale_x_continuous(breaks = c(0:23))"
