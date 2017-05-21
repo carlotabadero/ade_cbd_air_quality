@@ -45,12 +45,17 @@ Field labels: PM10 BAM ug/m3 – Particulate Matter 10 microns or less, PM2.5 BA
 We should organize the dates to its proper format and rename the columns for easy access.
 We also separate a column for each the components of time like year, month, days of the week and hour of the day.
 ```{r, echo=FALSE, results=FALSE}
-
+# Change names of the columns
 colnames(particle) <- c("date_time", "pm10", "pm2.5", "temp", "bar")
 
-particle <- mutate(particle, date_time = dmy_hm(particle$date, tz = "Australia/Adelaide"), year = year(date_time), month = month(date_time), wday = wday(date_time),hour = hour(date_time))
+# Extract time components
+particle <- mutate(particle, date_time = dmy_hm(particle$date_time, tz = "Australia/Adelaide"), year = year(date_time), nmonth = month(date_time), wday = wday(date_time),hour = hour(date_time), fmonth = month.abb[nmonth])
 
-head(particle)
+# Assign proper month levels and orders
+particle <- mutate(particle, fmonth = factor(particle$fmonth, levels = month.abb))
+
+# View
+head(particle, 10)
 ```
 ```{r}
 summarise(particle, avg_pm10 = mean(pm10, na.rm =TRUE), avg_pm2.5 = mean(pm2.5, na.rm = TRUE))
@@ -69,11 +74,10 @@ This plot does not show clearly the fluctuation of PM per hour. Perhaps, if we c
 
 
 ```{r}
-everyday = seq(from=as.Date('2005-1-1'),to=as.Date('2005-12-31'),by='month')
-month_array = format(everyday, '%b')
 
 by_hour <- particle %>% 
-  mutate(fmonth = month_array[month], week = week(date_time)) %>% 
+  filter(!is.na(fmonth)) %>% 
+  mutate(week = week(date_time)) %>% 
   group_by(year, fmonth, hour) %>%
   summarise(avg_pm10 = mean(pm10, na.rm = TRUE))
 
@@ -89,37 +93,30 @@ __The plot above suggests that there are most PM10 in the air on average during 
 Some months have pretty high average hourly rates so we can suspect that the season and time of the year has and effect on it. Let's try color-coding the plot by month and see if there is a pattern.
 
 ```{r}
-by_hour$nmonth <- NULL
-by_hour$nmonth = factor(by_hour$fmonth, levels = month_array)
-
 ggplot(by_hour, mapping = aes(x=hour, y=avg_pm10)) +
-  geom_point(aes(color = nmonth), na.rm = TRUE)+
+  geom_point(aes(color = fmonth), na.rm = TRUE)+
   geom_smooth(na.rm = TRUE)+
    scale_x_continuous(breaks = c(0:23))
 ```
 We can observe in the plot above that the months of November to January have higher PM rating than the other months. __We can theorise that there is a relationship of season being dry or wet on the air quality.__ To prove this theory, we have to group our months by season:
 ```{r}
 # Adding a "season" variable into our dataset
-season_array <- c("Jan" = "Summer",
-                  "Feb" = "Summer",
-                  "Mar" = "Autumn",
-                  "Apr" = "Autumn",
-                  "May" = "Autumn",
-                  "Jun" = "Winter",
-                  "Jul" = "Winter",
-                  "Aug" = "Winter",
-                  "Sep"= "Spring",
-                  "Oct" = "Spring",
-                  "Nov" = "Spring",
-                  "Dec" = "Summer")
+season_match <- data.frame(nmonth = 1:12,
+                           fmonth = month.abb,
+                           season = c(rep("Summer",times = 2),
+                                      rep("Autumn", times =3),
+                                      rep("Winter", times =3),
+                                      rep("Spring", times = 3),
+                                      "Summer"))
 
-particle$season <- NULL
 
+particle <- left_join(particle2, season_match)
+
+# Reordering chronologically the seasons
 particle <- particle %>% 
-  mutate(fmonth = month_array[month], season = season_array[fmonth])
-
-season_order <- c("Summer", "Autumn", "Winter", "Spring")
-
+  mutate(season = fct_reorder(season, nmonth))
+```
+```{r}
 # Grouping by hour and plotting
 by_hour <- particle %>% 
     filter(!is.na(season)) %>% 
