@@ -49,10 +49,10 @@ We also separate a column for each the components of time like year, month, days
 colnames(particle) <- c("date_time", "pm10", "pm2.5", "temp", "bar")
 
 # Extract time components
-particle <- mutate(particle, date_time = dmy_hm(particle$date_time, tz = "Australia/Adelaide"), year = year(date_time), nmonth = month(date_time), wday = wday(date_time),hour = hour(date_time), fmonth = month.abb[nmonth])
+particle <- mutate(particle, date_time = dmy_hm(particle$date_time, tz = "Australia/Adelaide"), year = year(date_time), month = month(date_time), wday = wday(date_time),hour = hour(date_time))
 
 # Assign proper month levels and orders
-particle <- mutate(particle, fmonth = factor(particle$fmonth, levels = month.abb))
+particle <- mutate(particle, month = factor(particle$month, levels = 1:12, labels = month.abb))
 
 # View
 head(particle, 10)
@@ -76,9 +76,9 @@ This plot does not show clearly the fluctuation of PM per hour. Perhaps, if we c
 ```{r}
 
 by_hour <- particle %>% 
-  filter(!is.na(fmonth)) %>% 
+  filter(!is.na(month)) %>% 
   mutate(week = week(date_time)) %>% 
-  group_by(year, fmonth, hour) %>%
+  group_by(year, month, hour) %>%
   summarise(avg_pm10 = mean(pm10, na.rm = TRUE))
 
 ggplot(by_hour, mapping = aes(x=hour, y=avg_pm10)) +
@@ -94,15 +94,14 @@ Some months have pretty high average hourly rates so we can suspect that the sea
 
 ```{r}
 ggplot(by_hour, mapping = aes(x=hour, y=avg_pm10)) +
-  geom_point(aes(color = fmonth), na.rm = TRUE)+
+  geom_point(aes(color = month), na.rm = TRUE)+
   geom_smooth(na.rm = TRUE)+
    scale_x_continuous(breaks = c(0:23))
 ```
 We can observe in the plot above that the months of November to January have higher PM rating than the other months. __We can theorise that there is a relationship of season being dry or wet on the air quality.__ To prove this theory, we have to group our months by season:
 ```{r}
 # Adding a "season" variable into our dataset
-season_match <- data.frame(nmonth = 1:12,
-                           fmonth = month.abb,
+season_match <- data.frame(month = 1:12,
                            season = c(rep("Summer",times = 2),
                                       rep("Autumn", times =3),
                                       rep("Winter", times =3),
@@ -114,13 +113,13 @@ particle <- left_join(particle2, season_match)
 
 # Reordering chronologically the seasons
 particle <- particle %>% 
-  mutate(season = fct_reorder(season, nmonth))
+  mutate(season = fct_reorder(season, month))
 ```
 ```{r}
 # Grouping by hour and plotting
 by_hour <- particle %>% 
     filter(!is.na(season)) %>% 
-    group_by(year, season, fmonth,hour) %>%
+    group_by(year, season, month,hour) %>%
     summarise( avg_pm10 = mean(pm10, na.rm = TRUE))
 
 ggplot(by_hour, mapping = aes(x=hour, y=avg_pm10),  na.rm = TRUE) +
@@ -139,6 +138,7 @@ avg_pm2.5 <- mean(particle$pm2.5, na.rm = TRUE)
 ```
 ```{r}
 # Compare the differences of the average air quality per season
+
 # Summarise by season
 by_season <- particle %>%
   filter(!is.na(season)) %>% 
@@ -147,7 +147,8 @@ by_season <- particle %>%
 
 # Compute for percentage mean comparison to total data
 by_season <- by_season %>% 
-  mutate(perc_delta_pm10 = (avg_pm10_season - avg_pm10)/avg_pm10, perc_delta_pm2.5 = (avg_pm2.5_season - avg_pm2.5)/avg_pm2.5)
+  mutate(perc_delta_pm10 = (avg_pm10_season - avg_pm10)/avg_pm10,
+         perc_delta_pm2.5 = (avg_pm2.5_season - avg_pm2.5)/avg_pm2.5)
 
 # Reorder columns
 by_season <- by_season[,c("season","avg_pm10_season","perc_delta_pm10","avg_pm2.5_season","perc_delta_pm2.5")]
