@@ -1,24 +1,29 @@
 ---
 title: "Analysis on Adelaide CBD Air Quality Data"
 output:
+  html_document: default
   html_notebook: default
   pdf_document: default
   word_document: default
 ---
 
-# Background
+# Background and Set-up
 The Environment Protection Authority (EPA) monitors South Australian airsheds in order to assess the air quality and provide information that can be used to guide management decisions. This data set contains validated particle pollution data for the Adelaide CBD region. This site was commissioned in April 2014. 
 
-Set-up libraries:
-```{r set-up, results=FALSE}
+```{r set-up, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+# Set-up libraries
+
 library("tidyverse")
 library("lubridate", "dplyr", "forcats")
+library("xtable")
+library(knitr)
+library("formattable")
 ```
 
 
-First we should load all the datasets from [data.sa.au](https://data.sa.gov.au/data/dataset/adelaide-cbd-air-quality-monitoring-station-particle)
+First we should load all the datasets from [data.sa.au](https://data.sa.gov.au/data/dataset/adelaide-cbd-air-quality-monitoring-station-particle).
 We got 36 data sets representing 36 months from  April 2014 up to March 2017. We have placed them all in a folder and in the code below, we will merge them into one dataset.
-```{r load}
+```{r load, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
 # Writing the function "multmerge" to merge multiple datasets. It takes the path of the input files (mypath) and ouput file (output_file) as arguments.
 
 multmerge <- function(mypath,output_file) {
@@ -34,46 +39,78 @@ particle <- read.csv("particle.csv")
 ```
 
 Let's see what we got:
-```{r}
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
 str(particle)
 ```
-Field labels: PM10 BAM ug/m3 – Particulate Matter 10 microns or less, PM2.5 BAM ug/m3 – Particulate Matter 2.5 microns or less, Temperature Deg C – Ambient Temperature, Barometric Pressure atm – Ambient Pressure. Data was collected as 10 minute averages. Information provided is PM10 and PM2.5 values expressed in micrograms per cubic metre (ug/m3), Ambient Temperature expressed in Degrees Celsius (Deg C) & Ambient Barometric Pressure expressed in Atmospheres (atm). Time is expressed as Time Ending Averages.
+   
+* PM10 BAM ug/m3 – Particulate Matter 10 microns or less
+* PM2.5 BAM ug/m3 – Particulate Matter 2.5 microns or less
+* Temperature Deg C – Ambient Temperature
+* Barometric Pressure atm – Ambient Pressure.
+* Data was collected as 10 minute averages.
+* Information provided is PM10 and PM2.5 values expressed in micrograms per cubic metre (µg/m3), Ambient Temperature expressed in Degrees Celsius (Deg C) & Ambient Barometric Pressure expressed in Atmospheres (atm).
+* Time is expressed as Time Ending Averages.
 
 
-# Data Exploration
-
-We should organize the dates to its proper format and rename the columns for easy access.
+We organised the dates to its proper format and rename the columns for easy access.
 We also separate a column for each the components of time like year, month, days of the week and hour of the day.
-```{r, echo=FALSE, results=FALSE}
+```{r, echo=FALSE, warning=FALSE,message=FALSE,error=FALSE}
 # Change names of the columns
 colnames(particle) <- c("date_time", "pm10", "pm2.5", "temp", "bar")
 
 # Extract time components
-particle <- mutate(particle, date_time = dmy_hm(particle$date_time, tz = "Australia/Adelaide"), year = year(date_time), month = month(date_time), wday = wday(date_time),hour = hour(date_time))
+particle <- mutate(particle, date_time = dmy_hm(particle$date_time, tz = "Australia/Adelaide"), year = year(date_time), month = month(date_time), date = date(date_time), weekday = weekdays(date_time),hour = hour(date_time))
 
 # Assign proper month levels and orders
-particle <- mutate(particle, month = factor(particle$month, levels = 1:12, labels = month.abb))
+particle <- particle %>% 
+  filter(!is.na(pm10), !is.na(year))
+
+particle <- mutate(particle, month = factor(particle$month, levels = 1:12, labels = month.name))
 
 # View
-head(particle, 10)
+kable(head(particle, 10))
 ```
-```{r}
-summarise(particle, avg_pm10 = mean(pm10, na.rm =TRUE), avg_pm2.5 = mean(pm2.5, na.rm = TRUE))
+   
+We have issues we intend to ask the EPA about the null values and negative values in the reading for air quality but it is for different discussion. We will set aside those issues first to be able to proceed on our analysis.
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+
+avg_pm10 <- mean(particle$pm10, na.rm = TRUE)
+
+avg_pm2.5 <- mean(particle$pm2.5, na.rm = TRUE)
+
+```
+    
+* __The averages (mean) of particulate matter (PM) readings over the period of April 2014 to March 2017 are `r round(avg_pm10, digits = 2)` ug/pm3 and `r round(avg_pm2.5, digits = 2)` ug/pm3 for Particulate Matter 10 microns or less and Particulate Matter 2.5 microns or less, respectively.__
+
+Now, let's see what hours have the most average PM10 readings. To simplify our analysis, we choose to focus first on PM10 variable.
+
+# What Time of Day is the air most polluted and when is it cleanest?
+Now, let us see how our data look like when plotted:
+To simplify our analysis, we choose to focus first on PM10 variable.
+```{r, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+hourly_table <- particle %>% 
+  filter(!is.na(hour)) %>% 
+  group_by(hour) %>% 
+  summarise("Average PM10" = round(mean(pm10, na.rm = TRUE), digits = 2), "Average PM2.5" = round(mean(pm2.5, na.rm = TRUE), digits = 2))
+  
+kable(hourly_table)
 ```
 
 
+Perhaps, we can gain more intuition if we plot all readings and group them per hour:
 
-Now, let's see what hours have the highest particulate matter(PM). To simplify our analysis, we choose to focus first on PM10 variable.
-```{r}
+```{r, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 ggplot(particle, mapping = aes(x=hour, y=pm10)) +
   geom_point(position = "jitter", na.rm = TRUE, alpha = 1/10)+
   geom_smooth(na.rm = TRUE)+
   scale_x_continuous(breaks = c(0:23))
 ```
-This plot does not show clearly the fluctuation of PM per hour. Perhaps, if we cluster our data per month and take the averages of particular hour, we can see a pattern.
+  
+This plot above does not show clearly the fluctuation of PM per hour but we can observe the suttle curve of the average PM10. Perhaps, if we cluster our data per month and take the average PM10 per month, we can see a pattern.
 
 
-```{r}
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
 
 by_hour <- particle %>% 
   filter(!is.na(month)) %>% 
@@ -87,35 +124,38 @@ ggplot(by_hour, mapping = aes(x=hour, y=avg_pm10)) +
   scale_x_continuous(breaks = c(0:23))
 
 ```
-__The plot above suggests that there are most PM10 in the air on average during the day from 1pm to around 2pm then gradually lessens until when the air is cleanest at around 3am to 4am.__
+    
+* __The plot above suggests that there are most PM10 in the air on average during the day from 1pm to around 2pm then gradually lessens until when the air is cleanest at around 3am to 4am.__
 
 
-Some months have pretty high average hourly rates so we can suspect that the season and time of the year has and effect on it. Let's try color-coding the plot by month and see if there is a pattern.
+Some months have pretty high hourly PM rates so we can suspect that the season and time of the year has and effect on it. Let's try color-coding the plot by month and see if there is a pattern.
 
-```{r}
+```{r, echo=FALSE, warning=FALSE,message=FALSE,error=FALSE}
 ggplot(by_hour, mapping = aes(x=hour, y=avg_pm10)) +
   geom_point(aes(color = month), na.rm = TRUE)+
   geom_smooth(na.rm = TRUE)+
    scale_x_continuous(breaks = c(0:23))
 ```
+      
 We can observe in the plot above that the months of November to January have higher PM rating than the other months. __We can theorise that there is a relationship of season being dry or wet on the air quality.__ To prove this theory, we have to group our months by season:
-```{r}
+```{r, echo=FALSE, results=FALSE, warning=FALSE,message=FALSE,error=FALSE}
 # Adding a "season" variable into our dataset
-season_match <- data.frame(month = 1:12,
+season_match <- data.frame(month = factor(1:12),
                            season = c(rep("Summer",times = 2),
                                       rep("Autumn", times =3),
                                       rep("Winter", times =3),
                                       rep("Spring", times = 3),
                                       "Summer"))
 
+season_match <- season_match %>% 
+  mutate(month = factor(season_match$month, levels = 1:12, labels = month.name))
 
-particle <- left_join(particle2, season_match)
+particle <- left_join(particle, season_match)
 
 # Reordering chronologically the seasons
-particle <- particle %>% 
-  mutate(season = fct_reorder(season, month))
+particle$season <- factor(particle$season, levels = c("Summer", "Autumn", "Winter", "Spring"))
 ```
-```{r}
+```{r, echo=FALSE, warning=FALSE,message=FALSE,error=FALSE}
 # Grouping by hour and plotting
 by_hour <- particle %>% 
     filter(!is.na(season)) %>% 
@@ -127,16 +167,12 @@ ggplot(by_hour, mapping = aes(x=hour, y=avg_pm10),  na.rm = TRUE) +
   geom_smooth(aes(colour = season), na.rm = TRUE, se = FALSE)+
   scale_x_continuous(breaks = c(0:23))
 ```
+     
 Our hypothesis is confirmed: __there is seasonal pattern affecting air quality in Adelaide CBD.__ Although we have to dig further to find out what factors in the season that affect the air quality.
 
 This time, we are now interested in translating our findings into numbers.
-```{r}
-# What is the overall average air quality?
-summarise(particle, avg_pm10 = mean(pm10, na.rm = TRUE), avg_pm2.5 = mean(pm2.5, na.rm = TRUE))
-avg_pm10 <- mean(particle$pm10, na.rm = TRUE)
-avg_pm2.5 <- mean(particle$pm2.5, na.rm = TRUE)
-```
-```{r}
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
 # Compare the differences of the average air quality per season
 
 # Summarise by season
@@ -147,16 +183,86 @@ by_season <- particle %>%
 
 # Compute for percentage mean comparison to total data
 by_season <- by_season %>% 
-  mutate(perc_delta_pm10 = (avg_pm10_season - avg_pm10)/avg_pm10,
-         perc_delta_pm2.5 = (avg_pm2.5_season - avg_pm2.5)/avg_pm2.5)
+  mutate(delta_pm10 = (avg_pm10_season - avg_pm10)/avg_pm10,
+         delta_pm2.5 = (avg_pm2.5_season - avg_pm2.5)/avg_pm2.5,
+         perc_delta_pm10 = percent(delta_pm10, digits = 2),
+         perc_delta_pm2.5 = percent(delta_pm2.5, digits = 2))
 
 # Reorder columns
 by_season <- by_season[,c("season","avg_pm10_season","perc_delta_pm10","avg_pm2.5_season","perc_delta_pm2.5")]
 
 # Display
-by_season
+kable(by_season, align = "lrrrr", caption = "Average PMs per season and their percentage above or below(negative) overall average reading")
 ```
+        
 
+# How does Adelaide CBD Air Quality Compare to Standards?
 
+Let's investigate how our data in Adelaide CBD compare to acceptable healthy measurements and how the air quality data compare to the standards.
 
-We also like to investigate how our data in Adelaide CBD compare to acceptable healthy measurements.
+According to [Australian Government Department of Environment and Energy, the National standards for criteria air pollutants 1 in Australia](http://www.environment.gov.au/protection/publications/factsheet-national-standards-criteria-air-pollutants-australia) provides that particles as PM10 pollutants should not exceed 50 µg/m³ averaged over a 24-hour period while particles as 25 µg/m³ over a one day period and 8 µg/m³ over a one year period. Given this standard, we should organise our data to one day periods and obtain the averages to be vetted against this standard.
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+# Group the data per 
+per_day <- particle %>%
+  filter(!is.na(date),!is.na(pm10), !is.na(pm2.5)) %>% 
+  group_by(year, month, date) %>% 
+  summarise("Average PM10" = mean(pm10, na.rm = TRUE), "Average PM2.5" = mean(pm2.5, na.rm = TRUE))
+
+breach_days_pm10 <- per_day %>% 
+  arrange(desc(`Average PM10`)) %>% 
+  filter(`Average PM10` > 50) %>% 
+  select(year, month, date, `Average PM10`)
+
+length_breach_day_pm10 <- as.character(length(breach_days_pm10$date))
+
+per_day %>% 
+  arrange(desc(`Average PM10`)) %>% 
+  head(10) %>% 
+  kable(caption = "Top 10 Most polluted Air Days by Daily Average PM10")
+```
+    
+As we can see there are `r length_breach_day_pm10` days when Adelaide CBD air breached the standard air quality for Australia. These dates are `r breach_days_pm10$date`.
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+kable(breach_days_pm10, caption = "Days Adelaide Breached Air Quality Standard on PM10 Pollution")
+```
+    
+For the next chapters of our analysis, we will investigate what other factors can be attributed with the highest polluted air days. Perhaps we can gain a little more insight if we plot our daily averaged PM10 readings:
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+per_day %>% 
+  ggplot(aes(x=date, y=`Average PM10`))+
+  geom_line()+
+  scale_y_continuous(breaks = c(10, 20, 30, 50, 70))
+  
+```
+   
+
+We will now examine our PM2.5 readings against the standards.
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+per_day %>% 
+  arrange(desc(`Average PM2.5`)) %>% 
+  head(10) %>% 
+  kable()
+```
+   
+The above table is _The Top 10 Most Polluted Air Days by Average PM2.5_. For the period covered by our data, Adelaide CBD did not breach the Australian Air Quality Standard for PM2.5 on not reaching 50 ug/m3 average per day. We will now group our data by year and compare:
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+per_year <- particle %>% 
+  filter(!is.na(pm2.5)) %>%
+  group_by(year) %>% 
+  summarise("Average PM2.5" = mean(pm2.5))
+
+kable(per_year)
+```
+   
+The Adelaide CBD Air Quality also did not breach the yearly PM2.5 air quality standard of 8 ug/m3 average. However, we should remember that only 2015 and 2016 are considered complete years in our data.
+
+_to be continued..._
+
+Ideas:
+
+* Investigate the days when Adelaide CBD breached the standard.
+    + Cross reference to weather.
+    + Cross reference to major man-made events.
+* Compare the averages to other cities.
+* Obtain weather data and see how the weather elements affect the air quality.
