@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Dice Roller</title>
+<meta name="description" content="Roll 2 or 3 dice — tap or shake." />
+
+<!-- Add-to-Home-Screen / PWA -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#053821" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Dice Roller" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+
+<style>
+  :root {
+    --felt-top: #0e6640;
+    --felt-bot: #053821;
+    --die: #f8f8fa;
+    --die-edge: #d2d2d6;
+    --pip: #1c1c20;
+    --text: #ffffff;
+    --gold: #e9c46a;
+    --die-size: min(34vw, 150px);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system,
+                 "Segoe UI", Roboto, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(120% 90% at 50% 0%, var(--felt-top), var(--felt-bot) 75%);
+    background-attachment: fixed;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(22px, 5vh, 44px);
+    padding: max(24px, env(safe-area-inset-top)) 24px
+             max(24px, env(safe-area-inset-bottom));
+    text-align: center;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(28px, 8vw, 40px);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Segmented control */
+  .segmented {
+    display: inline-flex;
+    background: rgba(0, 0, 0, 0.28);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 4px;
+  }
+  .segmented button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font: inherit;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 9px 22px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .segmented button.active {
+    background: var(--die);
+    color: var(--felt-bot);
+  }
+
+  /* Dice */
+  .dice {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(14px, 4vw, 24px);
+    min-height: var(--die-size);
+  }
+
+  .die {
+    width: var(--die-size);
+    height: var(--die-size);
+    background: linear-gradient(145deg, #ffffff, #ececf0);
+    border: 1px solid var(--die-edge);
+    border-radius: 22%;
+    padding: 16%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.3);
+    transition: transform 0.35s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  .die.rolling { animation: tumble 0.5s ease-in-out; }
+
+  @keyframes tumble {
+    0%   { transform: rotate(0deg)   scale(1); }
+    25%  { transform: rotate(-16deg) scale(1.06); }
+    50%  { transform: rotate(14deg)  scale(1.06); }
+    75%  { transform: rotate(-8deg)  scale(1.03); }
+    100% { transform: rotate(0deg)   scale(1); }
+  }
+
+  .pip {
+    align-self: center;
+    justify-self: center;
+    width: 74%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #34343a, var(--pip));
+    visibility: hidden;
+  }
+  .pip.on { visibility: visible; }
+
+  /* Total */
+  .total { display: flex; flex-direction: column; gap: 2px; }
+  .total .label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.65);
+  }
+  .total .value {
+    font-size: clamp(48px, 15vw, 64px);
+    font-weight: 900;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    line-height: 1;
+  }
+
+  /* Roll button */
+  .roll {
+    appearance: none;
+    border: 0;
+    background: var(--die);
+    color: var(--felt-bot);
+    font: inherit;
+    font-weight: 800;
+    font-size: 21px;
+    padding: 16px 0;
+    width: min(78vw, 320px);
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .roll:active { transform: translateY(2px); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); }
+  .roll[disabled] { opacity: 0.7; cursor: default; }
+
+  .hint {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+    min-height: 1em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .die, .die.rolling { animation: none; transition: none; }
+  }
+</style>
+</head>
+<body>
+  <h1>Dice Roller</h1>
+
+  <div class="segmented" id="countPicker" role="group" aria-label="Number of dice">
+    <button data-count="2" class="active" type="button">2 Dice</button>
+    <button data-count="3" type="button">3 Dice</button>
+  </div>
+
+  <div class="dice" id="dice" aria-live="polite"></div>
+
+  <div class="total">
+    <span class="label">TOTAL</span>
+    <span class="value" id="total">2</span>
+  </div>
+
+  <button class="roll" id="rollBtn" type="button">Roll</button>
+  <p class="hint" id="hint">Tap Roll — or shake your phone.</p>
+
+<script>
+  // Which of the 9 grid cells are filled for each face value.
+  const FACES = {
+    1: [4],
+    2: [0, 8],
+    3: [0, 4, 8],
+    4: [0, 2, 6, 8],
+    5: [0, 2, 4, 6, 8],
+    6: [0, 2, 3, 5, 6, 8],
+  };
+
+  const diceEl = document.getElementById("dice");
+  const totalEl = document.getElementById("total");
+  const rollBtn = document.getElementById("rollBtn");
+  const hintEl = document.getElementById("hint");
+  const picker = document.getElementById("countPicker");
+
+  let count = 2;
+  let values = [1, 1];
+  let isRolling = false;
+
+  function buildDie(value) {
+    const die = document.createElement("div");
+    die.className = "die";
+    die.dataset.value = value;
+    for (let i = 0; i < 9; i++) {
+      const pip = document.createElement("span");
+      pip.className = "pip" + (FACES[value].includes(i) ? " on" : "");
+      die.appendChild(pip);
+    }
+    return die;
+  }
+
+  function render() {
+    diceEl.innerHTML = "";
+    values.forEach((v) => diceEl.appendChild(buildDie(v)));
+    totalEl.textContent = values.reduce((a, b) => a + b, 0);
+  }
+
+  function buzz(ms) {
+    if (navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  function roll() {
+    if (isRolling) return;
+    isRolling = true;
+    rollBtn.disabled = true;
+    rollBtn.textContent = "Rolling…";
+    buzz(20);
+
+    const dice = [...diceEl.children];
+    dice.forEach((d) => d.classList.add("rolling"));
+
+    // Flash random faces a few times, then settle.
+    let ticks = 0;
+    const spin = setInterval(() => {
+      values = values.map(() => 1 + Math.floor(Math.random() * 6));
+      dice.forEach((die, i) => {
+        die.dataset.value = values[i];
+        [...die.children].forEach((pip, idx) =>
+          pip.classList.toggle("on", FACES[values[i]].includes(idx))
+        );
+      });
+      totalEl.textContent = values.reduce((a, b) => a + b, 0);
+      if (++ticks >= 8) {
+        clearInterval(spin);
+        dice.forEach((d) => d.classList.remove("rolling"));
+        buzz([30, 40, 30]);
+        isRolling = false;
+        rollBtn.disabled = false;
+        rollBtn.textContent = "Roll";
+      }
+    }, 60);
+  }
+
+  picker.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn || isRolling) return;
+    count = Number(btn.dataset.count);
+    [...picker.children].forEach((b) => b.classList.toggle("active", b === btn));
+    // Resize the values array, keeping existing dice.
+    if (count > values.length) {
+      while (values.length < count) values.push(1 + Math.floor(Math.random() * 6));
+    } else {
+      values = values.slice(0, count);
+    }
+    render();
+  });
+
+  // Shake to roll. iOS needs permission, granted via a user gesture (the Roll tap).
+  let shakeReady = false;
+  let lastShake = 0;
+  function enableShake() {
+    if (shakeReady) return;
+    window.addEventListener("devicemotion", (e) => {
+      const a = e.accelerationIncludingGravity;
+      if (!a) return;
+      const force = Math.abs(a.x) + Math.abs(a.y) + Math.abs(a.z);
+      const now = Date.now();
+      if (force > 28 && now - lastShake > 900) {
+        lastShake = now;
+        roll();
+      }
+    });
+    shakeReady = true;
+  }
+
+  rollBtn.addEventListener("click", () => {
+    // First tap also asks for motion access on iOS, then rolls.
+    if (typeof DeviceMotionEvent !== "undefined" &&
+        typeof DeviceMotionEvent.requestPermission === "function") {
+      DeviceMotionEvent.requestPermission()
+        .then((state) => { if (state === "granted") enableShake(); })
+        .catch(() => {})
+        .finally(roll);
+    } else {
+      enableShake();
+      roll();
+    }
+  });
+
+  render();
+
+  // Offline support: cache the app after first visit.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () =>
+      navigator.serviceWorker.register("service-worker.js").catch(() => {})
+    );
+  }
+</script>
+</body>
+</html>
