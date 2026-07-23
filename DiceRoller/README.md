@@ -1,10 +1,11 @@
 # Dice Roller 🎲🎲
 
-A simple native iPhone app (SwiftUI) that rolls **two dice**.
+A simple native iPhone app (SwiftUI) that rolls **2 or 3 dice**.
 
 ## Features
 
-- Two dice rendered as classic pip faces (drawn in code — no image assets needed)
+- Choose **2 or 3 dice** with a segmented picker
+- Dice rendered as classic pip faces (drawn in code — no image assets needed)
 - **Roll** button with a tumbling roll animation
 - **Shake the phone** to roll (uses the accelerometer)
 - Running **total** of both dice, with an animated number transition

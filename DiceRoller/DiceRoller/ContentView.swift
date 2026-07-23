@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var die1 = 1
-    @State private var die2 = 1
+    @State private var diceCount = 2
+    @State private var values = [1, 1]
     @State private var isRolling = false
     @State private var spin = 0.0
 
-    private var total: Int { die1 + die2 }
+    private var total: Int { values.reduce(0, +) }
 
     var body: some View {
         ZStack {
@@ -19,20 +19,34 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 40) {
+            VStack(spacing: 36) {
                 Text("Dice Roller")
                     .font(.system(size: 34, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.4), radius: 2, y: 2)
 
-                HStack(spacing: 28) {
-                    DieView(value: die1)
-                        .frame(width: 120, height: 120)
-                        .rotationEffect(.degrees(spin))
-                    DieView(value: die2)
-                        .frame(width: 120, height: 120)
-                        .rotationEffect(.degrees(-spin))
+                // Choose how many dice to roll.
+                Picker("Number of dice", selection: $diceCount) {
+                    Text("2 Dice").tag(2)
+                    Text("3 Dice").tag(3)
                 }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 40)
+                .disabled(isRolling)
+                .onChange(of: diceCount) { newCount in
+                    syncValues(to: newCount)
+                }
+
+                HStack(spacing: 20) {
+                    ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                        DieView(value: value)
+                            .frame(width: dieSize, height: dieSize)
+                            // Alternate spin direction for a livelier tumble.
+                            .rotationEffect(.degrees(index.isMultiple(of: 2) ? spin : -spin))
+                    }
+                }
+                .frame(height: 130)
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: diceCount)
 
                 VStack(spacing: 4) {
                     Text("TOTAL")
@@ -65,6 +79,18 @@ struct ContentView: View {
         .onShake { roll() }
     }
 
+    // Dice shrink a little when there are more of them so they stay on screen.
+    private var dieSize: CGFloat { diceCount >= 3 ? 100 : 120 }
+
+    /// Keep the values array length matched to the selected dice count.
+    private func syncValues(to count: Int) {
+        if count > values.count {
+            values.append(contentsOf: (values.count..<count).map { _ in Int.random(in: 1...6) })
+        } else if count < values.count {
+            values = Array(values.prefix(count))
+        }
+    }
+
     private func roll() {
         guard !isRolling else { return }
         isRolling = true
@@ -77,16 +103,14 @@ struct ContentView: View {
         let maxTicks = 8
         Timer.scheduledTimer(withTimeInterval: 0.06, repeats: true) { timer in
             withAnimation(.easeInOut(duration: 0.06)) {
-                die1 = Int.random(in: 1...6)
-                die2 = Int.random(in: 1...6)
+                values = values.map { _ in Int.random(in: 1...6) }
                 spin += 45
             }
             ticks += 1
             if ticks >= maxTicks {
                 timer.invalidate()
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
-                    die1 = Int.random(in: 1...6)
-                    die2 = Int.random(in: 1...6)
+                    values = values.map { _ in Int.random(in: 1...6) }
                     spin = 0
                 }
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
