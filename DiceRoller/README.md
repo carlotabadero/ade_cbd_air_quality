@@ -40,5 +40,6 @@ DiceRoller/
 
 ## Notes
 
-The app icon is an empty placeholder — add a 1024×1024 image to
-`Assets.xcassets/AppIcon.appiconset` in Xcode if you want a custom icon.
+The app icon (`Assets.xcassets/AppIcon.appiconset/AppIcon.png`) is a
+1024×1024 image of two dice on green felt. Replace that file in Xcode if
+you'd like a different icon.
